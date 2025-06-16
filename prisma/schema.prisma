@@ -1,0 +1,81 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // atau "mysql", "sqlite", sesuai kebutuhan
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String @id @default(uuid())
+  email    String @unique
+  password String
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+
+  // Relasi
+  ownedProjects Project[]    @relation("ProjectOwner")
+  memberships   Membership[]
+  assignedTasks Task[]       @relation("TaskAssignee")
+
+  @@map("users")
+}
+
+model Project {
+  id       String @id @default(uuid())
+  name    String
+  ownerId String
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+
+  // Relasi
+  owner       User         @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  tasks       Task[]
+  memberships Membership[]
+
+  @@map("projects")
+}
+
+model Task {
+  id           String @id @default(uuid())
+  title       String
+  description String
+  status      String @default("in-progress")
+  projectId   String
+  assigneeId  String
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+
+  // Relasi
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee User    @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: Cascade)
+
+  @@map("tasks")
+}
+
+model Membership {
+  id         String @id @default(uuid())
+  userId    String
+  projectId String
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+
+  // Relasi
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // Constraint untuk memastikan user tidak bisa menjadi member project yang sama lebih dari sekali
+  @@unique([userId, projectId])
+  @@map("memberships")
+}
