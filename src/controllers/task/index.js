@@ -17,7 +17,6 @@ const schema = z.object({
 async function CreateTask(req, res) {
   try {
     const { title, description, projectId, status, assigneeId } = req.body
-    console.log(req.body)
     const { token, valid } = AuthorizationValidation(req)
     if (!valid) return Response(res, 401, 'Unauthorized')
     const accessToken = token
@@ -139,7 +138,6 @@ async function GetTask(req, res) {
 
     const { verify, valid } = AuthorizationValidation(req)
     if (!valid) return Response(res, 401, 'Unauthorized')
-    console.log(verify)
     const tasks = await prisma.task.findMany({
       where: {
         title: {

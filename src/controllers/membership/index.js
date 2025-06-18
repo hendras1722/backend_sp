@@ -85,7 +85,6 @@ async function GetMembership(req, res) {
       })
       if (checkProject.length === 0)
         return Response(res, false, 404, null, 'Project not found')
-      console.log(checkProject)
     }
     const membership = await prisma.membership.findMany({
       where: {
