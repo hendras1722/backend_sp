@@ -6,6 +6,7 @@ const {
   PostProject,
   DeleteProject,
   UpdateProject,
+  GetDetailProject,
 } = require('../controllers/project')
 const {
   CreateTask,
@@ -22,6 +23,7 @@ const {
   DeleteMembership,
   UpdateMembership,
 } = require('../controllers/membership')
+const { getMe } = require('../controllers/getme')
 
 const Routes = express.Router()
 
@@ -33,6 +35,7 @@ Routes.post('/auth/register', Register)
 Routes.get('/project', auth, GetProject)
 Routes.post('/project', auth, PostProject)
 Routes.delete('/project/:id', auth, DeleteProject)
+Routes.get('/project/:id', auth, GetDetailProject)
 Routes.put('/project/:id', auth, UpdateProject)
 
 // task
@@ -50,6 +53,9 @@ Routes.put('/membership/:id', auth, UpdateMembership)
 
 // user
 Routes.get('/user', auth, getAllUser)
+
+//getMe
+Routes.get('/me', auth, getMe)
 
 // test
 Routes.get('/test', (req, res) => {

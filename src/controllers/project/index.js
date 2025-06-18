@@ -1,19 +1,30 @@
 const { PrismaClient } = require('@prisma/client')
 const { verifyToken } = require('../../helpers/Jwt')
 const { Response } = require('../../helpers/Response')
+const AuthorizationValidation = require('../../helpers/authorizationValidation')
 
 const prisma = new PrismaClient()
 
 async function GetProject(req, res) {
   try {
-    const cookies = req.cookies
-
-    if (!cookies.accessToken) return Response(res, 401, 'Unauthorized')
-    const IdUser = verifyToken(cookies.accessToken)
+    const { token, valid } = AuthorizationValidation(req)
+    if (!valid) return Response(res, 401, 'Unauthorized')
+    const accessToken = token
+    const IdUser = verifyToken(accessToken)
     if (!IdUser) return Response(res, 401, 'Unauthorized')
     const project = await prisma.project.findMany({
       where: {
-        ownerId: IdUser.id,
+        OR: [
+          { ownerId: IdUser.id },
+          {
+            memberships: {
+              some: {
+                userId: IdUser.id,
+              },
+            },
+          },
+        ],
+        id: req.query.projectId,
       },
       select: {
         id: true,
@@ -24,6 +35,40 @@ async function GetProject(req, res) {
             email: true,
           },
         },
+        memberships: true,
+        created_at: true,
+      },
+    })
+    Response(res, true, 'Get Project Successfully', { project })
+  } catch (error) {
+    if (error.errors) {
+      const errors = error.errors.map((err) => ({
+        field: err.path.join('.'),
+        message: err.message,
+      }))
+      return Response(res, false, 'Error', {}, errors)
+    }
+    Response(res, false, 'Error', {}, error.message ?? error.toString())
+  }
+}
+
+async function GetDetailProject(req, res) {
+  const { id } = req.params
+  try {
+    const project = await prisma.project.findFirst({
+      where: {
+        id: id,
+      },
+      select: {
+        id: true,
+        name: true,
+        owner: {
+          select: {
+            id: true,
+            email: true,
+          },
+        },
+        memberships: true,
         created_at: true,
       },
     })
@@ -42,9 +87,11 @@ async function GetProject(req, res) {
 
 async function PostProject(req, res) {
   try {
-    const cookies = req.cookies
+    const { token, valid } = AuthorizationValidation(req)
+    if (!valid) return Response(res, 401, 'Unauthorized')
+    const accessToken = token
     const { name } = req.body
-    const IdUser = verifyToken(cookies.accessToken)
+    const IdUser = verifyToken(accessToken)
     if (!IdUser) return Response(res, 401, 'Unauthorized')
     const project = await prisma.project.create({
       data: {
@@ -93,6 +140,7 @@ async function UpdateProject(req, res) {
       },
       data: {
         name,
+        updated_at: new Date(),
       },
     })
     Response(res, true, 'Update Project Successfully', { project })
@@ -137,4 +185,5 @@ module.exports = {
   PostProject,
   DeleteProject,
   UpdateProject,
+  GetDetailProject,
 }

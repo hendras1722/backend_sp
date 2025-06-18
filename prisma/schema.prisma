@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql" // atau "mysql", "sqlite", sesuai kebutuhan
+  provider = "postgresql" 
   url      = env("DATABASE_URL")
 }
 
@@ -38,7 +38,7 @@ model Project {
   // Relasi
   owner       User         @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   tasks       Task[]
-  memberships Membership[]
+  memberships Membership[] @relation("ProjectMemberships")
 
   @@map("projects")
 }
@@ -73,7 +73,7 @@ model Membership {
 
   // Relasi
   user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project Project @relation("ProjectMemberships", fields: [projectId], references: [id], onDelete: Cascade)
 
   // Constraint untuk memastikan user tidak bisa menjadi member project yang sama lebih dari sekali
   @@unique([userId, projectId])

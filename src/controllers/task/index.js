@@ -1,14 +1,26 @@
 const { PrismaClient } = require('@prisma/client')
 const { Response } = require('../../helpers/Response')
 const { verifyToken } = require('../../helpers/Jwt')
+const { z } = require('zod')
+const AuthorizationValidation = require('../../helpers/authorizationValidation')
 
 const prisma = new PrismaClient()
+
+const schema = z.object({
+  title: z.string(),
+  description: z.string(),
+  projectId: z.string(),
+  status: z.enum(['Todo', 'In-progress', 'Done']),
+  assigneeId: z.string(),
+})
 
 async function CreateTask(req, res) {
   try {
     const { title, description, projectId, status, assigneeId } = req.body
-    const cookies = req.cookies
-    if (!cookies.accessToken) return Response(res, 401, 'Unauthorized')
+    console.log(req.body)
+    const { token, valid } = AuthorizationValidation(req)
+    if (!valid) return Response(res, 401, 'Unauthorized')
+    const accessToken = token
 
     const checkMembership = await prisma.membership.findFirst({
       where: {
@@ -19,7 +31,6 @@ async function CreateTask(req, res) {
     if (!checkMembership)
       return Response(res, false, 401, 'User not in project')
 
-    const accessToken = cookies.accessToken
     const IdUser = await verifyToken(accessToken)
     if (!IdUser) return Response(res, false, 401, 'Unauthorized')
 
@@ -30,6 +41,20 @@ async function CreateTask(req, res) {
     })
     if (!checkProject) return Response(res, false, 404, 'Project not found')
 
+    const validation = schema.safeParse({
+      title,
+      description,
+      projectId,
+      status,
+      assigneeId,
+    })
+    if (!validation.success) {
+      const errors = validation.error.errors.map((err) => ({
+        field: err.path.join('.'),
+        message: err.message,
+      }))
+      return Response(res, false, 'Validation Error', {}, errors)
+    }
     const task = await prisma.task.create({
       data: {
         title,
@@ -60,9 +85,11 @@ async function CreateTask(req, res) {
 async function GetTaskDetail(req, res) {
   try {
     const { status } = req.query
+    const { id } = req.params
     const tasks = await prisma.task.findFirst({
       where: {
         status,
+        id,
       },
       select: {
         id: true,
@@ -74,7 +101,12 @@ async function GetTaskDetail(req, res) {
           select: {
             id: true,
             name: true,
-            ownerId: true,
+            owner: {
+              select: {
+                id: true,
+                email: true,
+              },
+            },
           },
         },
         assignee: {
@@ -103,10 +135,26 @@ async function GetTaskDetail(req, res) {
 
 async function GetTask(req, res) {
   try {
-    const { status } = req.query
+    const { title, status, projectId } = req.query
+
+    const { verify, valid } = AuthorizationValidation(req)
+    if (!valid) return Response(res, 401, 'Unauthorized')
+    console.log(verify)
     const tasks = await prisma.task.findMany({
       where: {
-        status,
+        title: {
+          contains: title,
+        },
+        project: {
+          is: {
+            id: projectId,
+          },
+        },
+        assignee: {
+          is: {
+            id: verify.id,
+          },
+        },
       },
       select: {
         id: true,
@@ -132,6 +180,7 @@ async function GetTask(req, res) {
     const totalCount = await prisma.task.count({
       where: {
         status,
+        title,
       },
     })
     Response(res, true, 'Get Task Successfully', {
@@ -155,9 +204,9 @@ async function UpdateTask(req, res) {
   try {
     const { id } = req.params
     const { title, description, projectId, status, assigneeId } = req.body
-    const cookies = req.cookies
-    if (!cookies.accessToken) return Response(res, 401, 'Unauthorized')
-    const accessToken = cookies.accessToken
+    const { token, valid } = AuthorizationValidation(req)
+    if (!valid) return Response(res, 401, 'Unauthorized')
+    const accessToken = token
     const IdUser = await verifyToken(accessToken)
     if (!IdUser) return Response(res, false, 401, 'Unauthorized')
 
@@ -167,6 +216,11 @@ async function UpdateTask(req, res) {
       },
     })
     if (!checkProject) return Response(res, false, 404, 'Project not found')
+
+    const checkTask = await prisma.task.findUnique({
+      where: { id },
+    })
+    if (!checkTask) return Response(res, false, 404, 'Task not found')
 
     const task = await prisma.task.update({
       where: {
@@ -182,11 +236,12 @@ async function UpdateTask(req, res) {
         project: {
           connect: { id: projectId },
         },
+        updated_at: new Date(),
       },
     })
     Response(res, true, 'Update Task Successfully', { task })
   } catch (error) {
-    console.log(error.response)
+    console.log(error.message)
     if (error.errors) {
       const errors = error.errors.map((err) => ({
         field: err.path.join('.'),

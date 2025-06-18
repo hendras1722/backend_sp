@@ -43,13 +43,11 @@ async function Login(req, res) {
     })
 
     res.cookie('accessToken', accessToken, {
-      httpOnly: true,
-      sameSite: 'strict',
+      sameSite: 'lax',
     })
 
     res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      sameSite: 'strict',
+      sameSite: 'lax',
     })
 
     Response(res, true, 'Login success', { accessToken, refreshToken })
